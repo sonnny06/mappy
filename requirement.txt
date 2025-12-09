@@ -1,0 +1,4 @@
+flask
+networkx
+numpy
+gunicorn

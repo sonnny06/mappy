@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Graph Algorithm Visualization</title>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; height: 100vh; margin: 0; }
+    #sidebar { width: 340px; background: #f4f4f4; padding: 20px; overflow-y: auto; border-right: 1px solid #ccc; }
+    #network-container { flex-grow: 1; background: #fff; height: 100vh; border-left: 1px solid #eee; }
+    .btn-group { margin-bottom: 18px; }
+    button { display: block; width: 100%; margin: 6px 0; padding: 10px; cursor: pointer; }
+    textarea { width: 100%; height: 170px; margin-top: 10px; }
+    h3 { border-bottom: 1px solid #ddd; padding-bottom: 6px; margin-bottom: 10px; }
+    input[type="text"] { width: 100%; margin: 5px 0; padding: 8px; box-sizing: border-box; }
+    .hint { font-size: 13px; color: #555; line-height: 1.35; }
+    .pill { display:inline-block; font-size: 12px; padding: 3px 8px; border-radius: 999px; background:#e5e7eb; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h2>Công cụ Đồ thị</h2>
+
+    <div class="btn-group">
+      <h3>0. Vẽ đồ thị</h3>
+      <button onclick="setMode('move')">🖐 Di chuyển</button>
+      <button onclick="setMode('add_node')">➕ Thêm đỉnh</button>
+      <button onclick="setMode('add_edge')">🔗 Thêm cạnh</button>
+      <button onclick="setMode('edit_edge')">✏️ Sửa trọng số</button>
+      <button onclick="lockGraph()">🔒 Khóa đồ thị</button>
+      <button onclick="unlockGraph()">🔓 Mở khóa đồ thị</button>
+
+      <button onclick="setMode('delete')">🗑 Xóa (node/cạnh)</button>
+
+      <label style="margin-top:10px; display:block;">Trọng số mặc định (weight)</label>
+      <input type="text" id="defaultWeight" value="1" placeholder="VD: 1">
+
+      <label style="margin-top:10px; display:block;">Capacity mặc định (MaxFlow)</label>
+      <input type="text" id="defaultCapacity" value="1" placeholder="VD: 10">
+
+      <label style="margin-top:10px; display:block;">Tốc độ minh hoạ (ms/bước)</label>
+      <input type="text" id="speedMs" value="450" placeholder="VD: 600">
+
+      <div class="pill">Tip: chọn chế độ rồi click lên canvas</div>
+    </div>
+
+    <div class="btn-group">
+      <h3>1. Chế độ</h3>
+      <label><input type="checkbox" id="isDirected"> Đồ thị có hướng</label>
+      <button onclick="clearGraph()">Xóa trắng đồ thị</button>
+      <button onclick="exportGraph()">💾 Xuất JSON</button>
+      <input type="file" id="importFile" accept=".json" onchange="importGraphFile(event)">
+    </div>
+
+    <div class="btn-group">
+      <h3>2. Thuật toán</h3>
+      <input type="text" id="sourceNode" placeholder="Đỉnh nguồn (VD: 1)">
+      <input type="text" id="targetNode" placeholder="Đỉnh đích (VD: 5)">
+
+      <button onclick="runShortestPath()">Tìm đường ngắn nhất (Dijkstra)</button>
+      <button onclick="runTraversal('bfs')">Duyệt BFS</button>
+      <button onclick="runTraversal('dfs')">Duyệt DFS</button>
+      <button onclick="checkBipartite()">Kiểm tra 2 phía</button>
+
+      <button onclick="runMST('prim')">MST - Prim</button>
+      <button onclick="runMST('kruskal')">MST - Kruskal</button>
+
+      <button onclick="runMaxFlow()">Max Flow (Ford-Fulkerson)</button>
+      <button onclick="runEuler('fleury')">Euler - Fleury</button>
+      <button onclick="runEuler('hierholzer')">Euler - Hierholzer</button>
+    </div>
+
+    <div class="btn-group">
+      <h3>3. Chuyển đổi Biểu diễn</h3>
+      <button onclick="convertRepresentation()">Xem 3 dạng biểu diễn</button>
+
+      <label style="margin-top:10px; display:block;">Build từ JSON (matrix/adjlist/edgelist)</label>
+      <select id="repMode" style="width:100%; padding:8px; box-sizing:border-box;">
+        <option value="matrix">Adjacency Matrix</option>
+        <option value="adjlist">Adjacency List</option>
+        <option value="edgelist">Edge List</option>
+      </select>
+      <textarea id="repInput" placeholder="Dán JSON vào đây..."></textarea>
+      <button onclick="buildFromRepresentation()">Build đồ thị từ JSON</button>
+
+      <textarea id="outputArea" placeholder="Kết quả sẽ hiện ở đây..."></textarea>
+    </div>
+
+    <div class="btn-group">
+      <div class="hint">
+        <b>Cách vẽ:</b><br>
+        - <b>Thêm đỉnh</b>: click vùng trống để thêm.<br>
+        - <b>Thêm cạnh</b>: click node A → click node B để tạo cạnh (nhập weight/capacity).<br>
+        - <b>Sửa trọng số</b>: click cạnh để sửa weight/capacity.<br>
+        - <b>Xóa</b>: click node/cạnh để xoá.<br>
+        <br>
+        <b>MaxFlow</b>: dùng <i>capacity</i> (ô mặc định capacity). Với đồ thị vô hướng, nên bật "có hướng".
+      </div>
+    </div>
+  </div>
+
+  <div id="network-container"></div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
