@@ -1,8 +1,15 @@
+# app.py
 from flask import Flask, render_template, request, jsonify
-import networkx as nx
-import numpy as np
+import os
+# ...
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder='.',   # tìm index.html ở thư mục hiện tại 
+    static_folder='.',     # phục vụ script.js từ thư mục hiện tại
+    static_url_path=''     
+)
+
 
 # -----------------------------
 # Helpers
@@ -353,5 +360,6 @@ def euler_hierholzer():
     return jsonify({'status': 'success', 'start': start, 'odd': odd, 'circuit_edges': edges})
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
