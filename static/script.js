@@ -6,7 +6,7 @@ var edges = new vis.DataSet([]);
 var container = document.getElementById('network-container');
 var data = { nodes: nodes, edges: edges };
 
-// TẮT "Edit" nổi của vis, dùng sidebar mode
+// Tắt manipulation UI nổi, dùng sidebar mode
 var options = {
   manipulation: { enabled: false },
   interaction: { hover: true, dragNodes: true },
@@ -29,10 +29,7 @@ function lockGraph() {
 
 function unlockGraph() {
   network.setOptions({
-    physics: {
-      enabled: true,
-      stabilization: { iterations: 150 }
-    }
+    physics: { enabled: true, stabilization: { iterations: 150 } }
   });
   network.once("stabilizationIterationsDone", function () {
     network.setOptions({ physics: false });
@@ -42,8 +39,8 @@ function unlockGraph() {
 // =====================
 // SIDEBAR DRAWING MODES
 // =====================
-let currentMode = "move";      // move | add_node | add_edge | edit_edge | delete
-let pendingFrom = null;        // dùng khi add_edge
+let currentMode = "move";   // move | add_node | add_edge | edit_edge | delete
+let pendingFrom = null;     // dùng khi add_edge
 
 window.setMode = function (mode) {
   currentMode = mode;
@@ -81,7 +78,6 @@ network.on("click", function (params) {
         alert("Đỉnh đã tồn tại!");
         return;
       }
-
       nodes.add({
         id: label,
         label: label,
@@ -92,7 +88,7 @@ network.on("click", function (params) {
     return;
   }
 
-  // ADD EDGE: click node 1 rồi click node 2
+  // ADD EDGE: click node1 -> click node2
   if (currentMode === "add_edge") {
     if (!clickedNode) return;
 
@@ -106,12 +102,9 @@ network.on("click", function (params) {
       pendingFrom = null;
 
       nodes.update({ id: from, color: { background: "#e5e7eb", border: "#9ca3af" } });
-
       if (from === to) return;
 
       const isDirected = document.getElementById('isDirected')?.checked || false;
-
-      // hỏi weight + capacity
       const wDefault = getDefaultWeight();
       const cDefault = getDefaultCapacity();
 
@@ -124,20 +117,19 @@ network.on("click", function (params) {
       c = String(c).trim() || cDefault;
 
       const eid = "e" + (edges.length + 1);
-
       edges.add({
         id: eid,
         from: String(from),
         to: String(to),
         label: String(w),
         capacity: Number(c),
-        arrows: isDirected ? 'to' : ''
+        arrows: isDirected ? "to" : ""
       });
     }
     return;
   }
 
-  // EDIT EDGE: click cạnh để sửa weight/capacity
+  // EDIT EDGE: click cạnh
   if (currentMode === "edit_edge") {
     if (!clickedEdge) return;
     const e = edges.get(clickedEdge);
@@ -145,7 +137,7 @@ network.on("click", function (params) {
     const wDefault = (e.label || getDefaultWeight());
     const cDefault = (e.capacity != null ? String(e.capacity) : getDefaultCapacity());
 
-    let w = prompt("Sửa trọng số weight:", wDefault);
+    let w = prompt("Sửa weight:", wDefault);
     if (w === null) return;
     w = String(w).trim() || wDefault;
 
@@ -157,14 +149,12 @@ network.on("click", function (params) {
     return;
   }
 
-  // DELETE: click node/edge để xóa
+  // DELETE node/edge
   if (currentMode === "delete") {
     if (clickedEdge) edges.remove(clickedEdge);
     else if (clickedNode) nodes.remove(clickedNode);
     return;
   }
-
-  // MOVE: không làm gì thêm
 });
 
 // Directed checkbox => update arrows
@@ -177,7 +167,7 @@ if (directedCheckbox) {
 }
 
 // =====================
-// SAVE / LOAD (JSON)
+// SAVE / LOAD JSON
 // =====================
 function getGraphData() {
   return {
@@ -211,7 +201,7 @@ function importGraphFile(event) {
       loadGraph(g);
       alert("Import đồ thị thành công!");
     } catch (e) {
-      alert("File JSON không hợp lệ: " + e);
+      alert("JSON không hợp lệ: " + e);
     }
   };
   reader.readAsText(file);
@@ -290,7 +280,6 @@ async function animateSteps(steps) {
     else if (s.type === 'final_node') colorNode(s.id, '#ff0000');
     else if (s.type === 'final_edge') colorEdge(s.id, 'red', 5);
     else if (s.type === 'good_edge') colorEdge(s.id, '#22c55e', 5);
-    else if (s.type === 'bad_edge') colorEdge(s.id, '#f97316', 5);
     else if (s.type === 'msg') {
       const out = document.getElementById('outputArea');
       if (out) out.value += s.text + "\n";
@@ -302,8 +291,6 @@ async function animateSteps(steps) {
 // =====================
 // BACKEND CALLS
 // =====================
-
-// 3) Dijkstra
 async function runShortestPath() {
   resetColor();
   const source = document.getElementById('sourceNode').value.trim();
@@ -314,14 +301,12 @@ async function runShortestPath() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph: getGraphData(), source, target })
   });
-
   const result = await response.json();
 
   if (result.status === 'success') {
     alert("Độ dài đường đi: " + result.length);
     const path = result.path || [];
     const steps = [{ type: 'msg', text: `Shortest path length = ${result.length}` }];
-
     for (let i = 0; i < path.length; i++) {
       steps.push({ type: 'final_node', id: path[i] });
       if (i < path.length - 1) {
@@ -335,7 +320,6 @@ async function runShortestPath() {
   }
 }
 
-// 4) BFS/DFS
 async function runTraversal(method) {
   resetColor();
   const source = document.getElementById('sourceNode').value.trim();
@@ -345,7 +329,6 @@ async function runTraversal(method) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph: getGraphData(), source, method })
   });
-
   const result = await response.json();
 
   if (result.status === 'success') {
@@ -364,7 +347,6 @@ async function runTraversal(method) {
   }
 }
 
-// 5) Bipartite
 async function checkBipartite() {
   const response = await fetch('/api/check_bipartite', {
     method: 'POST',
@@ -384,7 +366,6 @@ async function checkBipartite() {
   }
 }
 
-// 6) Convert representation
 async function convertRepresentation() {
   const response = await fetch('/api/convert', {
     method: 'POST',
@@ -410,18 +391,14 @@ async function convertRepresentation() {
   document.getElementById('outputArea').value = text;
 }
 
-// 6b) Build from representation JSON
 async function buildFromRepresentation() {
   const mode = document.getElementById('repMode').value;
   const txt = document.getElementById('repInput').value.trim();
   if (!txt) return alert("Hãy dán JSON biểu diễn vào ô trước!");
 
   let payload;
-  try {
-    payload = JSON.parse(txt);
-  } catch (e) {
-    return alert("JSON không hợp lệ: " + e);
-  }
+  try { payload = JSON.parse(txt); }
+  catch (e) { return alert("JSON không hợp lệ: " + e); }
 
   payload.mode = mode;
   payload.isDirected = document.getElementById('isDirected').checked;
@@ -431,8 +408,8 @@ async function buildFromRepresentation() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-
   const result = await response.json();
+
   if (result.status === 'success') {
     loadGraph(result.graph);
     alert("Build đồ thị thành công!");
@@ -441,16 +418,13 @@ async function buildFromRepresentation() {
   }
 }
 
-// 7.1/7.2) MST
 async function runMST(algo) {
   resetColor();
-
   const response = await fetch('/api/mst', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph: getGraphData(), algorithm: algo })
   });
-
   const result = await response.json();
 
   if (result.status === 'success') {
@@ -466,7 +440,6 @@ async function runMST(algo) {
   }
 }
 
-// 7.3) Max Flow
 async function runMaxFlow() {
   resetColor();
   const source = document.getElementById('sourceNode').value.trim();
@@ -477,13 +450,10 @@ async function runMaxFlow() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph: getGraphData(), source, target })
   });
-
   const result = await response.json();
 
   if (result.status === 'success') {
     const steps = [{ type: 'msg', text: `MaxFlow = ${result.maxflow}` }];
-
-    // Highlight edges where flow > 0
     (result.flow_edges || []).forEach(([u, v, f, cap]) => {
       if (f > 0) {
         const eid = findEdgeId(u, v);
@@ -491,7 +461,6 @@ async function runMaxFlow() {
         steps.push({ type: 'msg', text: `${u}->${v}: flow=${f}/${cap}` });
       }
     });
-
     await animateSteps(steps);
     alert("MaxFlow = " + result.maxflow);
   } else {
@@ -499,39 +468,33 @@ async function runMaxFlow() {
   }
 }
 
-// 7.4/7.5) Euler
 async function runEuler(which) {
   resetColor();
   const start = document.getElementById('sourceNode').value.trim();
-
-  let endpoint = (which === 'fleury') ? '/api/euler_fleury' : '/api/euler_hierholzer';
+  const endpoint = (which === 'fleury') ? '/api/euler_fleury' : '/api/euler_hierholzer';
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ graph: getGraphData(), start })
   });
-
   const result = await response.json();
-  if (result.status !== 'success') {
-    return alert(result.message || "Euler failed.");
-  }
+
+  if (result.status !== 'success') return alert(result.message || "Euler failed.");
 
   const steps = [{ type: 'msg', text: `${which.toUpperCase()} start=${result.start}, odd=${JSON.stringify(result.odd)}` }];
-
   const listEdges = (which === 'fleury') ? (result.trail_edges || []) : (result.circuit_edges || []);
+
   if (listEdges.length === 0) {
-    steps.push({ type: 'msg', text: 'Không có cạnh để duyệt (đồ thị rỗng?)' });
+    steps.push({ type: 'msg', text: 'Không có cạnh để duyệt.' });
     return animateSteps(steps);
   }
 
-  // animate edges in order, and nodes
   steps.push({ type: 'final_node', id: listEdges[0][0] });
   for (const [u, v] of listEdges) {
     const eid = findEdgeId(u, v);
     steps.push({ type: 'final_edge', id: eid });
     steps.push({ type: 'final_node', id: v });
   }
-
   await animateSteps(steps);
 }

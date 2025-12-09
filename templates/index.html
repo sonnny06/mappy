@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Graph Algorithm Visualization</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --panel: rgba(255,255,255,.08);
+      --text: #e5e7eb;
+      --muted: rgba(229,231,235,.75);
+      --border: rgba(255,255,255,.12);
+      --accent: #60a5fa;
+      --good: #22c55e;
+      --danger: #ef4444;
+      --shadow: 0 18px 50px rgba(0,0,0,.35);
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; height:100vh; display:flex;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(96,165,250,.25), transparent 60%),
+        radial-gradient(900px 700px at 90% 40%, rgba(34,197,94,.20), transparent 55%),
+        radial-gradient(700px 600px at 50% 110%, rgba(168,85,247,.18), transparent 55%),
+        var(--bg);
+    }
+    #sidebar{
+      width:380px; padding:18px 16px; overflow-y:auto;
+      border-right:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+    }
+    #network-container{
+      flex:1; height:100vh;
+      background: rgba(255,255,255,.02);
+      border-left: 1px solid rgba(255,255,255,.06);
+    }
+    h2{ margin:6px 0 14px; font-size:18px; }
+    h3{
+      margin:0 0 10px; font-size:14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      padding-bottom:8px;
+    }
+    .btn-group{
+      margin-bottom:14px; padding:12px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      background: rgba(255,255,255,.06);
+    }
+    label{ font-size:13px; color:var(--muted); }
+    input[type="text"], select, textarea{
+      width:100%;
+      margin:7px 0;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.20);
+      color:var(--text);
+      outline:none;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus{
+      border-color: rgba(96,165,250,.7);
+      box-shadow: 0 0 0 4px rgba(96,165,250,.15);
+    }
+    textarea{ height:170px; resize:vertical; }
+
+    button{
+      width:100%;
+      padding:10px 12px;
+      margin:8px 0;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+      color:var(--text);
+      cursor:pointer;
+      transition: transform .06s ease, background .2s ease, border-color .2s ease;
+    }
+    button:hover{
+      border-color: rgba(96,165,250,.55);
+      background: linear-gradient(180deg, rgba(96,165,250,.20), rgba(255,255,255,.06));
+      transform: translateY(-1px);
+    }
+    button:active{ transform: translateY(0); }
+
+    .pill{
+      display:inline-block;
+      font-size:12px;
+      padding:4px 10px;
+      border-radius:999px;
+      background: rgba(96,165,250,.18);
+      border:1px solid rgba(96,165,250,.25);
+      margin-top:6px;
+      color: rgba(255,255,255,.9);
+    }
+    .hint{ font-size:12.5px; color: rgba(229,231,235,.78); line-height:1.45; }
+    #sidebar::-webkit-scrollbar{ width:10px; }
+    #sidebar::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.14); border-radius:999px; }
+  </style>
+</head>
+
+<body>
+  <div id="sidebar">
+    <h2>🧠 Graph Algorithms</h2>
+
+    <div class="btn-group">
+      <h3>0. Vẽ đồ thị (Sidebar Mode)</h3>
+      <button onclick="setMode('move')">🖐 Di chuyển</button>
+      <button onclick="setMode('add_node')">➕ Thêm đỉnh</button>
+      <button onclick="setMode('add_edge')">🔗 Thêm cạnh</button>
+      <button onclick="setMode('edit_edge')">✏️ Sửa weight/capacity</button>
+      <button onclick="setMode('delete')">🗑 Xóa node/cạnh</button>
+
+      <label>Weight mặc định</label>
+      <input type="text" id="defaultWeight" value="1" />
+
+      <label>Capacity mặc định (MaxFlow)</label>
+      <input type="text" id="defaultCapacity" value="1" />
+
+      <label>Tốc độ minh hoạ (ms/bước)</label>
+      <input type="text" id="speedMs" value="450" />
+
+      <div class="pill">Tip: chọn chế độ rồi click canvas</div>
+    </div>
+
+    <div class="btn-group">
+      <h3>1. Tuỳ chọn</h3>
+      <label><input type="checkbox" id="isDirected"> Đồ thị có hướng</label>
+      <button onclick="lockGraph()">🔒 Khóa đồ thị</button>
+      <button onclick="unlockGraph()">🔓 Mở khóa (physics)</button>
+      <button onclick="clearGraph()">🧹 Xóa trắng</button>
+
+      <button onclick="exportGraph()">💾 Xuất JSON</button>
+      <input type="file" id="importFile" accept=".json" onchange="importGraphFile(event)">
+    </div>
+
+    <div class="btn-group">
+      <h3>2. Thuật toán</h3>
+      <input type="text" id="sourceNode" placeholder="Đỉnh nguồn (VD: 1)" />
+      <input type="text" id="targetNode" placeholder="Đỉnh đích (VD: 5)" />
+
+      <button onclick="runShortestPath()">Dijkstra (đường ngắn nhất)</button>
+      <button onclick="runTraversal('bfs')">BFS</button>
+      <button onclick="runTraversal('dfs')">DFS</button>
+      <button onclick="checkBipartite()">Kiểm tra 2 phía</button>
+
+      <button onclick="runMST('prim')">MST - Prim</button>
+      <button onclick="runMST('kruskal')">MST - Kruskal</button>
+
+      <button onclick="runMaxFlow()">Max Flow (Ford-Fulkerson)</button>
+      <button onclick="runEuler('fleury')">Euler - Fleury</button>
+      <button onclick="runEuler('hierholzer')">Euler - Hierholzer</button>
+    </div>
+
+    <div class="btn-group">
+      <h3>3. Biểu diễn đồ thị</h3>
+      <button onclick="convertRepresentation()">Xem ma trận kề / DS kề / DS cạnh</button>
+
+      <label>Build từ JSON biểu diễn</label>
+      <select id="repMode">
+        <option value="matrix">Adjacency Matrix</option>
+        <option value="adjlist">Adjacency List</option>
+        <option value="edgelist">Edge List</option>
+      </select>
+
+      <textarea id="repInput" placeholder="Dán JSON biểu diễn vào đây..."></textarea>
+      <button onclick="buildFromRepresentation()">Build đồ thị từ JSON</button>
+
+      <textarea id="outputArea" placeholder="Output..."></textarea>
+
+      <div class="hint">
+        <b>Gợi ý:</b> MaxFlow dùng <i>capacity</i>. Nếu bạn đang vẽ vô hướng thì MaxFlow nên bật “có hướng”.
+      </div>
+    </div>
+  </div>
+
+  <div id="network-container"></div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

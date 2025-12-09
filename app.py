@@ -1,24 +1,15 @@
-# app.py
 from flask import Flask, render_template, request, jsonify
 import os
-# ...
+import networkx as nx
+import numpy as np
 
-app = Flask(
-    __name__,
-    template_folder='.',   # tìm index.html ở thư mục hiện tại 
-    static_folder='.',     # phục vụ script.js từ thư mục hiện tại
-    static_url_path=''     
-)
-
+app = Flask(__name__)  # Flask chuẩn: templates/ và static/
 
 # -----------------------------
 # Helpers
 # -----------------------------
 def build_graph_from_json(data):
-    """
-    data = { nodes:[{id,label}], edges:[{id,from,to,label}], isDirected:bool }
-    label của edge được hiểu là weight (float). (MaxFlow sẽ dùng capacity riêng.)
-    """
+    """Graph dùng weight từ edge.label"""
     directed = bool(data.get('isDirected', False))
     G = nx.DiGraph() if directed else nx.Graph()
 
@@ -35,11 +26,7 @@ def build_graph_from_json(data):
 
 
 def build_capacity_digraph(data):
-    """
-    Tạo DiGraph cho maxflow:
-    - luôn coi là có hướng
-    - capacity lấy từ edge['capacity'] nếu có, nếu không lấy từ label
-    """
+    """Graph dùng capacity cho MaxFlow (luôn có hướng)."""
     G = nx.DiGraph()
     for node in data.get('nodes', []):
         nid = str(node.get('id'))
@@ -70,15 +57,15 @@ def index():
 # 3) Shortest path (Dijkstra)
 # -----------------------------
 @app.route('/api/shortest_path', methods=['POST'])
-def get_shortest_path():
+def shortest_path():
     data = request.json
     G = build_graph_from_json(data['graph'])
-    source = str(data['source'])
-    target = str(data['target'])
+    s = str(data['source'])
+    t = str(data['target'])
 
     try:
-        path = nx.dijkstra_path(G, source, target, weight='weight')
-        length = nx.dijkstra_path_length(G, source, target, weight='weight')
+        path = nx.dijkstra_path(G, s, t, weight='weight')
+        length = nx.dijkstra_path_length(G, s, t, weight='weight')
         return jsonify({'status': 'success', 'path': path, 'length': length})
     except nx.NetworkXNoPath:
         return jsonify({'status': 'error', 'message': 'Không có đường đi'})
@@ -93,19 +80,15 @@ def get_shortest_path():
 def traversal():
     data = request.json
     G = build_graph_from_json(data['graph'])
-    start_node = str(data['source'])
+    start = str(data.get('source', ''))
     method = str(data.get('method', 'bfs')).lower()
 
     try:
-        if start_node not in G:
+        if start not in G:
             return jsonify({'status': 'error', 'message': 'Đỉnh nguồn không tồn tại trong đồ thị'})
 
-        if method == 'bfs':
-            edges = list(nx.bfs_edges(G, source=start_node))
-        else:
-            edges = list(nx.dfs_edges(G, source=start_node))
-
-        nodes_order = [start_node] + [v for u, v in edges]
+        edges = list(nx.bfs_edges(G, source=start)) if method == 'bfs' else list(nx.dfs_edges(G, source=start))
+        nodes_order = [start] + [v for _, v in edges]
         return jsonify({'status': 'success', 'path_nodes': nodes_order, 'path_edges': edges})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
@@ -143,7 +126,7 @@ def convert_representation():
     nodes = sorted(list(G.nodes()))
     adj_matrix = nx.to_numpy_array(G, nodelist=nodes)
     adj_list = nx.to_dict_of_lists(G)
-    edge_list = list(G.edges(data='weight'))  # (u,v,w)
+    edge_list = list(G.edges(data='weight'))
 
     return jsonify({
         'nodes': nodes,
@@ -154,7 +137,7 @@ def convert_representation():
 
 
 # -----------------------------
-# 6b) Build graph from representation (matrix/adjlist/edgelist)
+# 6b) Build graph from representation JSON
 # -----------------------------
 @app.route('/api/build_from_rep', methods=['POST'])
 def build_from_rep():
@@ -166,6 +149,8 @@ def build_from_rep():
         if mode == 'matrix':
             nodes = [str(x) for x in data.get('nodes', [])]
             M = data.get('adj_matrix', [])
+            if len(M) != len(nodes) or any(len(row) != len(nodes) for row in M):
+                return jsonify({'status': 'error', 'message': 'Kích thước adj_matrix phải là NxN đúng theo số nodes'})
             G = nx.DiGraph() if directed else nx.Graph()
             G.add_nodes_from(nodes)
             for i in range(len(nodes)):
@@ -179,14 +164,16 @@ def build_from_rep():
             adj = data.get('adj_list', {})
             G = nx.DiGraph() if directed else nx.Graph()
             for u, nbrs in adj.items():
-                G.add_node(str(u))
+                u = str(u)
+                G.add_node(u)
                 for v in nbrs:
-                    G.add_node(str(v))
-                    G.add_edge(str(u), str(v), weight=1.0)
+                    v = str(v)
+                    G.add_node(v)
+                    G.add_edge(u, v, weight=1.0)
 
         elif mode == 'edgelist':
             nodes = [str(x) for x in data.get('nodes', [])]
-            el = data.get('edge_list', [])  # [[u,v,w],...]
+            el = data.get('edge_list', [])
             G = nx.DiGraph() if directed else nx.Graph()
             G.add_nodes_from(nodes)
             for e in el:
@@ -201,7 +188,14 @@ def build_from_rep():
         out_edges = []
         k = 1
         for (u, v, d) in G.edges(data=True):
-            out_edges.append({'id': f'e{k}', 'from': str(u), 'to': str(v), 'label': str(d.get('weight', 1.0))})
+            w = float(d.get('weight', 1.0))
+            out_edges.append({
+                'id': f'e{k}',
+                'from': str(u),
+                'to': str(v),
+                'label': str(w),
+                'capacity': w
+            })
             k += 1
 
         return jsonify({'status': 'success', 'graph': {'nodes': out_nodes, 'edges': out_edges, 'isDirected': directed}})
@@ -210,30 +204,30 @@ def build_from_rep():
 
 
 # -----------------------------
-# 7.1/7.2) MST (Prim/Kruskal)
+# 7.1/7.2) MST
 # -----------------------------
 @app.route('/api/mst', methods=['POST'])
-def get_mst():
+def mst():
     data = request.json
     G = build_graph_from_json(data['graph'])
     algo = str(data.get('algorithm', 'kruskal')).lower()
-    G_undirected = G.to_undirected()
 
     try:
+        Gu = G.to_undirected()
         if algo == 'prim':
-            mst = nx.minimum_spanning_tree(G_undirected, algorithm='prim', weight='weight')
+            T = nx.minimum_spanning_tree(Gu, algorithm='prim', weight='weight')
         else:
-            mst = nx.minimum_spanning_tree(G_undirected, algorithm='kruskal', weight='weight')
+            T = nx.minimum_spanning_tree(Gu, algorithm='kruskal', weight='weight')
 
-        edges_uv = [[u, v] for (u, v) in mst.edges()]
-        total = float(sum(G_undirected[u][v].get('weight', 1.0) for u, v in mst.edges()))
+        edges_uv = [[u, v] for (u, v) in T.edges()]
+        total = float(sum(Gu[u][v].get('weight', 1.0) for u, v in T.edges()))
         return jsonify({'status': 'success', 'edges': edges_uv, 'total': total})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
 
 # -----------------------------
-# 7.3) MaxFlow (Ford-Fulkerson via Edmonds-Karp)
+# 7.3) Max Flow (Edmonds-Karp)
 # -----------------------------
 @app.route('/api/maxflow', methods=['POST'])
 def maxflow():
@@ -243,7 +237,7 @@ def maxflow():
     G = build_capacity_digraph(data['graph'])
 
     if s not in G or t not in G:
-        return jsonify({'status': 'error', 'message': 's/t không tồn tại'})
+        return jsonify({'status': 'error', 'message': 'Nguồn/Đích không tồn tại trong đồ thị (MaxFlow)'})
 
     try:
         flow_value, flow_dict = nx.maximum_flow(
@@ -252,20 +246,20 @@ def maxflow():
             capacity='capacity'
         )
 
-        edges = []
+        edges_out = []
         for u in flow_dict:
             for v, f in flow_dict[u].items():
                 if G.has_edge(u, v):
                     cap = float(G[u][v].get('capacity', 0.0))
-                    edges.append([u, v, float(f), cap])
+                    edges_out.append([u, v, float(f), cap])
 
-        return jsonify({'status': 'success', 'maxflow': float(flow_value), 'flow_edges': edges})
+        return jsonify({'status': 'success', 'maxflow': float(flow_value), 'flow_edges': edges_out})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
 
 # -----------------------------
-# 7.4/7.5) Euler (Fleury, Hierholzer) - undirected
+# 7.4/7.5) Euler (undirected)
 # -----------------------------
 def _euler_ok_undirected(Gu: nx.Graph):
     non_iso = [n for n in Gu.nodes() if Gu.degree(n) > 0]
@@ -289,7 +283,7 @@ def euler_fleury():
         return jsonify({'status': 'error', 'message': f'Không có Euler trail/cycle. Odd={odd}'})
 
     if start not in Gu.nodes():
-        start = odd[0] if len(odd) == 2 else (next(iter(Gu.nodes())) if len(Gu.nodes()) else '')
+        start = odd[0] if len(odd) == 2 else next(iter(Gu.nodes()))
     if len(odd) == 2 and start not in odd:
         start = odd[0]
 
@@ -307,7 +301,7 @@ def euler_fleury():
         H.add_edge(a, b, **attr)
         return len(reachable_after) < len(reachable_before)
 
-    while H.degree(cur) > 0:
+    while cur in H and H.degree(cur) > 0:
         nbrs = list(H.neighbors(cur))
         chosen = None
         for v in nbrs:
@@ -335,7 +329,7 @@ def euler_hierholzer():
         return jsonify({'status': 'error', 'message': f'Không có Euler trail/cycle. Odd={odd}'})
 
     if start not in Gu.nodes():
-        start = odd[0] if len(odd) == 2 else (next(iter(Gu.nodes())) if len(Gu.nodes()) else '')
+        start = odd[0] if len(odd) == 2 else next(iter(Gu.nodes()))
     if len(odd) == 2 and start not in odd:
         start = odd[0]
 
@@ -353,11 +347,8 @@ def euler_hierholzer():
             H.remove_edge(v, u)
             stack.append(u)
 
-    edges = []
-    for i in range(len(circuit) - 1):
-        edges.append([circuit[i], circuit[i+1]])
-
-    return jsonify({'status': 'success', 'start': start, 'odd': odd, 'circuit_edges': edges})
+    edges_out = [[circuit[i], circuit[i + 1]] for i in range(len(circuit) - 1)]
+    return jsonify({'status': 'success', 'start': start, 'odd': odd, 'circuit_edges': edges_out})
 
 
 if __name__ == "__main__":
